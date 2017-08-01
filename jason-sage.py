@@ -386,14 +386,23 @@ exit();
 
 
 
-# Finding the orbit space for the representation. For this set chi to be any primitive character (use program above to find these)
+# Finding the orbit space for the representation. 
+# For this set chi to be any primitive character 
+# (use program above to find these)
 
 chi = 4
 
 
 # Orbits without dependence on character
 
-# Returns a list of tuples [alpha,n] where alpha is a representative for the orbit and n is the size of the orbit.
+# Returns a list of tuples [alpha,n] where alpha is a representative 
+# for the orbit and n is the size of the orbit.
+
+
+# JASON QUESTION:
+# Why is this outputting a tuple? where do we use the 
+# size of the orbit? i.e. the second value in the tuple?
+#
 def orbits(G):
     T = G
     orbits = [ ]
@@ -412,7 +421,8 @@ def orbits(G):
     
 # Orbits with dependence on character chi
 
-# Returns a list of tuples [alpha,n] where alpha is a representative for the orbit and n is the size of the orbit.
+# Returns a list of tuples [alpha,n] where alpha is a representative 
+# for the orbit and n is the size of the orbit.
 def orbits_chi(G):
     T = G
     orbitschar = [ ]
@@ -456,7 +466,10 @@ def orbits_chi(G):
 print("Generating fields for representations...");
 
 F = UniversalCyclotomicField()
-i = F.zeta(4)
+i = F.zeta(4)   # <--- JASON: is this 4 the chosen chi value?
+    # F.zeta(n) is an alias for F.gen(n), returning standard nth root of unity
+    # In fact, F.gen(n,k) is supported, giving kth power of standard nth root
+    # of unity. This may be faster than what we do below in echar()?
 Rp = Integers(p)
 
 # legendre symbol    
@@ -474,14 +487,13 @@ def esig(a):
     return el
  
  
-# character determined by chi on C    
+# character determined by chi on C     --- JASON: How is 'chi' determining anything?
 def echar(a):
     chart = len(C)
     el = F.zeta(chart)**(a)
     return el
 
 # Epsilon is constant that occurs in representation of w. 
-
 def epsilonfinder():
     if legendre(-1) == 1 and k%2 == 1:
         epsilon = 1
@@ -511,6 +523,8 @@ def ActionA(a):
             H = [mult(c[0],j[0]) for c in Chars]            
             if (a*l[0][0],a*l[0][1]) in H:
                 g = H.index((a*l[0][0],a*l[0][1]))                
+                # Can we not multiply the entire matrix by legendre(a)**k
+                # once we are all done? it's just a scalar.
                 V.append(legendre(a)**k*echar(Z(Chars[g][1])))
             else:
                 V.append(0)
