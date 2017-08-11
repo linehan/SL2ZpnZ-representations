@@ -104,8 +104,6 @@ class TanakaMonoid():
         else:
             self.members = members;
 
-        self.R0 = Integers(self.order());
-        
     def __iter__(self):
         return iter(self.members);
     def __str__(self):
@@ -210,12 +208,32 @@ class TanakaCyclicAbelianSubgroup(TanakaMonoid):
         return self._generator;
 
 
-class TanakaCharacter():
+class CyclicCharacter():
+    """
+    Implement a character of the form e^(2*pi*i*(1/n)*j).
+
+    NOTES
+    If C is a cyclic group of order m, then any character on C
+    must correspond to one of the m many primitive m-th roots of 
+    unity, each given as an integer power of e^(2*pi*i(1/|C|)).
+    Then we can simply index each character by providing an integer
+    corresponding to this integer power.
+    """
+    def __init__(self, n, power=1, exact=True):
+        self.base = UCF.zeta(n)**power;
+        if exact == False:
+            self.base = complex(self.base.real(), self.base.imag());
+
+    def eval(self, j):
+        return self.base**ZZ(j);
+
+
+class TanakaCharacter(CyclicCharacter):
     """
     Implement a character on a TanakaCyclicAbelianSubgroup.
 
     NOTES
-    1. The domain C of a character X is always finite, so 
+    The domain C of a character X is always finite, so 
     the character is stored as a list of tuples
 
         (c, xc) in C x Z,
@@ -226,21 +244,17 @@ class TanakaCharacter():
     during intermediate steps). 
     
     If C=<g>, c=g^j is an element of C, then xc = j. 
-
-    2. If C is a cyclic group of order m, then any character on C
-    must correspond to one of the m many primitive m-th roots of 
-    unity, each given as an integer power of e^(2*pi*i(1/|C|)).
-    Then we can simply index each character by providing an integer
-    corresponding to this integer power.
     """
-    def __init__(self, C, x):
+    def __init__(self, C, x, exact=True):
         """
         Instantiate a TanakaCharacter object.
         @C: TanakaCyclicAbelianSubgroup object.
         @x: Integer index of the character. 
         """
-        if not isinstance(domain, TanakaCyclicAbelianSubgroup):
+        if not isinstance(C, TanakaCyclicAbelianSubgroup):
             raise TypeError("Domain must be TanakaCyclicAbelianSubgroup");
+
+        CyclicCharacter.__init__(self, C.order(), exact=exact);
 
         data  = [];
         gen   = C.generator();
@@ -250,7 +264,7 @@ class TanakaCharacter():
             tmp = gen;
             pwr   = 1;
             while tmp != c:
-                tmp = domain.mult(tmp, gen);
+                tmp = C.mult(tmp, gen);
                 pwr = pwr + 1;
             data.append((c, mod(x*pwr, order)));
 
@@ -266,7 +280,7 @@ class TanakaCharacter():
 
 class TanakaRepSpace():
     """
-    This class implements R_k(D, s) from the text. 
+    Implement the representation space R_k(D, s).
     """
     def __init__(self, p, n, k, D, s, exact=False):
         params = TanakaParams(p, n, k, D, s);
@@ -298,14 +312,9 @@ class TanakaRepSpace():
         self.G      = G;
         self.C      = C;
         self.CL     = CL;
+        self.exact  = exact;
 
-        # Cache for faster character evaluation
-        self.base_sigma = UCF.zeta(p**n)**(s);
-        self.base_chi   = UCF.zeta(C.order());
-
-        if exact == False:
-            self.base_sigma = complex(self.base_sigma.real(), self.base_sigma.imag());
-            self.base_chi   = complex(self.base_chi.real(), self.base_chi.imag());
+        self.e_sigma = CyclicCharacter(p**n, power=s, exact=exact);
 
         # Compute W stuff
         self.W_constant = self._compute_W_constant(p, n, k, D, s);
@@ -319,22 +328,6 @@ class TanakaRepSpace():
         """
         r = mod(a, self.params.p)**((self.params.p-1)/2);
         return Integer(r) if r != -1 else -1;
-
-    def _e_sigma(self, a):
-        """
-        Computes the value of the character e_sigma on an input.
-        @a    : Input
-        Return: Value 
-        """
-        return self.base_sigma**ZZ(a); 
-
-    def _e_chi(self, xh):
-        """
-        Computes the value of the character chi on an input xg.
-        @xh   : Integer k, where h=g^k for g a generator of chi's domain.
-        Return: Value 
-        """
-        return self.base_chi**xh; 
 
     def _compute_W_constant(self, p, n, k, D, s):
         """ 
@@ -404,7 +397,7 @@ class TanakaRepSpace():
         @chi:
         Return:
         """
-        self.X          = TanakaCharacter(self.C, chi);
+        self.X          = TanakaCharacter(self.C, chi, exact=self.exact);
         self.orbit_reps = self._get_orbits();
         self.W_cached   = None; # Reset the cache
 
@@ -422,7 +415,7 @@ class TanakaRepSpace():
                 for (c, xc) in self.X:
                     if self.G.mult(c, o2) == ao1:
                         V.append(
-                            (self._legendre(a)**self.params.k)*self._e_chi(xc)
+                            (self._legendre(a)**self.params.k)*self.X.eval(xc)
                         );
                         break;
                 else:
@@ -441,7 +434,7 @@ class TanakaRepSpace():
             V = []
             for o2 in self.orbit_reps:            
                 if o1 == o2: # Along diagonal
-                    V.append(self._e_sigma(ZZ(b * self.G.norm(o2))));
+                    V.append(self.e_sigma.eval(ZZ(b * self.G.norm(o2))));
                 else:
                     V.append(0);
             M.append(V);
@@ -462,8 +455,8 @@ class TanakaRepSpace():
                 for o2 in self.orbit_reps:
                     Sum = 0
                     for (xc, co1) in H:
-                        Sum += self._e_sigma(-2*self.G.traceconj(o2,co1)) \
-                             * self._e_chi(xc);
+                        Sum += self.e_sigma.eval(-2*self.G.traceconj(o2,co1)) \
+                             * self.X.eval(xc);
                     V.append(Sum);
                 M.append(V)
             self.W_cached = self.W_constant*matrix(M);
@@ -543,18 +536,10 @@ out = test_output();
 
 p1 = test_primitives();
 p2 = R.get_primitive_characters();
-p3 = R.get_primitive_characters_old();
+
+print(p1 == p2);
 
 
-for x in R.C.R0:
-    print(x);
-
-for x in range(0, R.C.order()):
-    print(x);
-
-print(p2);
-print(p3);
-#print(p1 == p2);
 
 
 print(R.B(3) == out[0]);
