@@ -4,35 +4,43 @@ import sys
 from sage.all import *
 
 
-# Helpful static functions that use the classes below. 
-###############################################################################
+"""
+APPENDIX A.
+-----------
+Let C be the complex numbers.
 
-#def _get_orbits(group, subset):
-    ## Computes the orbits of the action of a group on a subset of
-    ## that group.
-    ##
-    ## Returns a list of tuples [alpha,n] where alpha is a representative 
-    ## for the orbit and n is the size of the orbit.
-    #orbits = [];
-    #G      = group.members;
+A character X:G->C on a multiplicative abelian group 
 
-    #while len(G) != 0:
-        #u     = G[0]; # get first thing in here
-        #orb_u = [];
-        #for v in subset:
-            #uv = group.mult(u,v);
-            #if uv not in orb_u:
-                #orb_u.append(uv);
-        #orbits.append([orb_u[0], len(orb_u)]);
-        #G = [g for g in G if g not in orb_u];
+    G = <g>, |G| = n
 
-    #return orbits
+must map the generator g to one of the complex n-th 
+roots of unity (there are n): 
 
+    e^(2*pi*i*(j/n)) : 0 <= j <= n-1.
 
-# Returns a list of tuples [alpha,n] where alpha is a representative 
-# for the orbit and n is the size of the orbit.
+The choice of j determines the values of X on any 
+other element u = g^k of G:
 
-#
+    X(g^k) = (X(g))^k = e^(2*pi*i*(j/n)*k),
+
+and every complex n-th root of unity corresponds to
+a character on G. Hence we can index the characters 
+of G by this choice of j.
+
+If we let B = e^(2*pi*i*(1/n)), we can see that 
+
+    X_j(g^k) = B^(j*k),
+
+and hence if we know B, we can store a character X_j
+as a list of tuples:
+
+    (u = g^k, j*k),
+
+and recover the complex value later in the computation. 
+"""
+
+# APPENDIX B.
+# -----------
 #    TO OBTAIN A BASIS FOR IndVx:
 #    ----------------------------
 #    1. Let C act on G by left multiplication and 
@@ -54,6 +62,12 @@ from sage.all import *
 #        x(c_1) != x(c_2), 
 #
 #    we simply define e_i = 0.
+#
+
+
+
+# Helpful static functions that use the classes below. 
+###############################################################################
 
 def _get_orbit_representatives_IndVx(G, C, x):
     """
@@ -66,102 +80,49 @@ def _get_orbit_representatives_IndVx(G, C, x):
     @x: The index of a primitive/principal character 
 
     Return: List of b_i in G, for each [b_i] in the orbit space G/C. 
+
+    FOR THEORY: Appendix B.
     """
     orbit_reps = [];
-    G_elements = G.members; # Copying this isn't efficient 
+    G_members  = list(G.members); # Copying this isn't my fav. thing ever. 
 
-    while len(G) != 0:
-        g      = G_elements[0];
-        orb_g  = [];
-        orb_xg = [];
-
+    while len(G_members) != 0:
+        g = G_members[0];
+        g_orbit = {};
+        g_orbit_rep = None;
+        
         for c in C:
             gc = G.mult(g, c);
-            if gc not in orb_g:
-                orb_g.append(gc);
 
-        for (c, xc) in C.get_character(x):
-            gc = group.mult(g, c);
-            if (gc, xc) not in orb_xg:
-                orb_xg.append((gc, xc));
+            if g_orbit_rep == None:
+                g_orbit_rep = gc;
 
-        if len(orb_g) == len(orb_xg):
-            """
-            This happens precisely when there is v1, v2 in subgroup
-            such that for this u, 
-                u*v1 == u*v2 
-            and
-                chi(v1) != chi(v2).
+            if gc not in g_orbit:
+                g_orbit[gc] = c; 
+            else: 
+                d = g_orbit[gc]; # gc == gd
+                if C.get_character_value(x, c) != C.get_character_value(x, d):
+                    g_orbit_rep = None;
+                    break;
 
-            In such a case, there will be fewer elements in orb_u
-            than in orb_xu.
+        if g_orbit_rep != None:
+            orbit_reps.append(g_orbit_rep);
 
-            This implies that f(u) = 0 (see our paper draft), and
-            this leads to badness ... ? So we do not count it.
-
-            (THIS IS SORT OF CRUDE -- CONSIDER REFIT)
-            """
-            orbit_reps.append([orb_g[0], len(orb_g)])
-        else:
-            print("Orbit length not equal!");
-
-        G_elements = [u for u in G_elements if u not in orb_g];
+        for u in g_orbit:
+            G_members.remove(u);
 
     return orbit_reps;
 
 
-def _get_chi(j, G, generator):
-    """
-    Let C be the complex numbers.
 
-    A character X:G->C on a multiplicative abelian group 
 
-        G = <g>, |G| = n
 
-    must map the generator g to one of the complex n-th 
-    roots of unity (there are n): 
 
-        e^(2*pi*i*(j/n)) : 0 <= j <= n-1.
 
-    The choice of j determines the values of X on any 
-    other element u = g^k of G:
+###############################################################################
 
-        X(g^k) = (X(g))^k = e^(2*pi*i*(j/n)*k),
-
-    and every complex n-th root of unity corresponds to
-    a character on G. Hence we can index the characters 
-    of G by this choice of j.
-
-    If we let B = e^(2*pi*i*(1/n)), we can see that 
-
-        X_j(g^k) = B^(j*k),
-
-    and hence if we know B, we can store a character X_j
-    as a list of tuples:
-
-        (u = g^k, j*k),
-
-    and recover the complex value later in the computation. 
-    """
-    if j >= G.get_order():
-        print("Character index 'j' is out of range.");
-
-    R0 = Integers(G.get_order());
-
-    chi = [];
-    gen = generator;
-
-    for u in G:
-        v   = gen;
-        jk  = R0(j); # Why do we do this here. Ask Ben.
-        while v != u:
-            v  = G.mult(v, gen);
-            jk = jk + j;  
-
-        chi.append((u, jk));
-
-    return chi;
-
+class TanakaCharacter():
+    pass;
 
 ###############################################################################
 
@@ -240,7 +201,6 @@ class TanakaMonoid():
         """ Note we promote the elements to full integers, then demote
             them again into Rn at the end. 
         """
-            be enforced to be elements
         x = self.Z(u[0])**2 + self.delta*self.Z(u[1])**2;
         return self.Rn(x);
     
@@ -260,11 +220,6 @@ class TanakaMonoid():
             subset=[g for g in self.members if self.norm(g) == 1]
         );
 
-    def get_orbits_of_action_on(self, subgroup):
-        if self.param != subgroup.monoid.param:
-            print("Not my subgroup!");
-
-        return _get_orbits(self, subgroup);
 
     def get_orbits_of_action_on_with_char(self, subgroup, j):
         if self.param != subgroup.monoid.param:
@@ -291,12 +246,12 @@ class TanakaCyclicAbelianSubgroup(TanakaMonoid):
             delta_prime = monoid.param.delta_prime
         );
 
-        self.monoid               = monoid;
-        self.members              = subset;
+        self.monoid          = monoid;
+        self.members         = subset;
 
-        self.generator            = generator;
-        self.characters           = {};
-        self.primitive_characters = [];
+        self.generator       = generator;
+        self.chars           = {};
+        self.chars_primitive = [];
 
         # Are these the R_0, R_1 in Tanaka's paper (p.125) ?
         self.R0 = Integers(self.get_order());
@@ -318,7 +273,6 @@ class TanakaCyclicAbelianSubgroup(TanakaMonoid):
 
         return o; 
 
-
     def get_generator(self):
         """ WARNING: Halts only if the subgroup is cyclic. """ 
         if self.generator == None:
@@ -329,17 +283,49 @@ class TanakaCyclicAbelianSubgroup(TanakaMonoid):
             
         return self.generator;
 
+    def _get_character_data(self, x):
+        """
+        FOR THEORY: Appendix A.
+        """
+        if x not in self.chars:
+            """ MEMOIZING """
+            if x >= self.get_order():
+                print("Character index 'x' is out of range.");
 
-    def get_character(self, chi):
-        if chi not in self.characters:
-            self.characters[chi] = _get_chi(chi, self, self.get_generator());
+            char = [];
+            gen  = self.get_generator();
 
-        return self.characters[chi];
+            for g in G:
+                h     = gen;
+                x_pow = self.R0(j); # Why do we cast with R0 here? Ask Ben.
 
+                while h != g:
+                    h = self.mult(h, gen);
+                    k = k + 1;
+
+                char.append((g, x*k));
+
+            self.chars[x] = TanakaCharacter();
+            self.chars[x].format_tuple = char;
+            self.chars[x].format_dict = dict(char);
+
+        return self.chars[x];
+
+    def get_character(self, x):
+        """ """    
+        data = self._get_character_data(x); 
+        return data.format_tuple;
+
+    def get_character_value(self, x, g):
+        """ """    
+        data = self._get_character_data(x);
+        return data.format_dict[g];
+        # Notice you have a copy of C here in the keys of this
+        # structure. Inefficient.
 
     def get_primitive_characters(self):
         """ This operation works only for the particular CL<C... not class-y """ 
-        if len(self.primitive_characters) == 0:
+        if len(self.chars_primitive) == 0:
 
             R0  = self.R0;
             R1  = self.R1;
@@ -357,13 +343,49 @@ class TanakaCyclicAbelianSubgroup(TanakaMonoid):
 
             for chi in R0:
                 if all(u[1] == 0 for u in CL.get_character(chi)) == False:
-                    self.primitive_characters.append(chi);
+                    self.chars_primitive.append(chi);
 
-        return self.primitive_characters;
+        return self.chars_primitive;
 
 
 
 ###############################################################################
+
+class TanakaRepresentation():
+
+    # def echar() replacement
+
+    def __init__(self, p, n, k, sigma, delta_prime):
+        self.G = TanakaMonoid(
+                p = 5,
+                n = 2,
+                k = 1,
+                delta_prime = 9,
+        );
+
+        self.X = # (something to do with sigma)
+
+        self.C = TanakaCyclicAbelianSubgroup(
+            monoid=G, 
+            subset=[g for g in G if G.norm(g) == 1]
+        );
+
+    def A(self):
+        pass;
+
+    def B(self):
+        pass;
+
+    def W(self):
+        pass;
+
+    def Bruhat(self):
+        pass;
+
+    def get(self, SL2_element):  # or a, b, c, d
+        pass;
+
+
 
 def ActionA(a):
     M = []
@@ -410,6 +432,29 @@ def ActionA(a):
         M.append(V)    
     return matrix(M).transpose()
 
+
+def ActionA(a, C, chi):
+    M = []
+
+    for o1 in orbits_chi(G):
+        V = []
+        for o2 in orbits_chi(G):
+            char = C.get_character(chi); # Where chi is chosen beforehand.
+
+            H = [C.mult(x[0], o2) for x in char];
+
+            # TODO: This scalar multiplication should be defined on the class.
+            if (a*o1[0], a*o1[1]) in H:
+                g = H.index((a*o1[0], a*o1[1]))                
+
+                V.append(legendre(a)**C.monoid.param.k*echar(Z(char[g][1])));
+            else:
+                V.append(0)
+
+        M.append(V)    
+
+    return matrix(M).transpose()
+
 ###############################################################################
 
 
@@ -427,12 +472,16 @@ C = G.get_subgroup_C();
 ch_4    = C.get_character(4);
 ch_prim = C.get_primitive_characters();
 
-orbits  = G.get_orbits_of_action_on(C);
+#orbits  = G.get_orbits_of_action_on(C);
 
 orbits2  = G.get_orbits_of_action_on_with_char(C, 4);
+orbits3  = G.get_orbits_of_action_on_with_char2(C, 4);
 
-print(orbits);
+#print(orbits);
+print(orbits3);
 print(orbits2);
+
+print(orbits2 == orbits3);
 
 
 #print(ch_4);
@@ -442,3 +491,112 @@ print(orbits2);
 exit();
 
 
+
+
+
+#def _make_char_entry(j, G, G_generator):
+    #"""
+    #Let C be the complex numbers.
+
+    #A character X:G->C on a multiplicative abelian group 
+
+        #G = <g>, |G| = n
+
+    #must map the generator g to one of the complex n-th 
+    #roots of unity (there are n): 
+
+        #e^(2*pi*i*(j/n)) : 0 <= j <= n-1.
+
+    #The choice of j determines the values of X on any 
+    #other element u = g^k of G:
+
+        #X(g^k) = (X(g))^k = e^(2*pi*i*(j/n)*k),
+
+    #and every complex n-th root of unity corresponds to
+    #a character on G. Hence we can index the characters 
+    #of G by this choice of j.
+
+    #If we let B = e^(2*pi*i*(1/n)), we can see that 
+
+        #X_j(g^k) = B^(j*k),
+
+    #and hence if we know B, we can store a character X_j
+    #as a list of tuples:
+
+        #(u = g^k, j*k),
+
+    #and recover the complex value later in the computation. 
+    #"""
+    #if j >= G.get_order():
+        #print("Character index 'j' is out of range.");
+
+    #R0 = Integers(G.get_order());
+
+    #data = TanakaCharacter(); 
+    #data.tuple_form = [];
+
+    #for g in G:
+        #h   = G_generator;
+        #jk  = R0(j); # Why do we cast with R0 here. Ask Ben.
+        #while h != g:
+            #h  = G.mult(h, G_generator);
+            #jk = jk + j;  
+
+        #data.tuple_form.append((g, jk));
+
+    #data.assoc_form = dict(data.tuple_form);
+
+    #return data;
+
+
+#def _get_chi(j, G, generator):
+    #"""
+    #Let C be the complex numbers.
+
+    #A character X:G->C on a multiplicative abelian group 
+
+        #G = <g>, |G| = n
+
+    #must map the generator g to one of the complex n-th 
+    #roots of unity (there are n): 
+
+        #e^(2*pi*i*(j/n)) : 0 <= j <= n-1.
+
+    #The choice of j determines the values of X on any 
+    #other element u = g^k of G:
+
+        #X(g^k) = (X(g))^k = e^(2*pi*i*(j/n)*k),
+
+    #and every complex n-th root of unity corresponds to
+    #a character on G. Hence we can index the characters 
+    #of G by this choice of j.
+
+    #If we let B = e^(2*pi*i*(1/n)), we can see that 
+
+        #X_j(g^k) = B^(j*k),
+
+    #and hence if we know B, we can store a character X_j
+    #as a list of tuples:
+
+        #(u = g^k, j*k),
+
+    #and recover the complex value later in the computation. 
+    #"""
+    #if j >= G.get_order():
+        #print("Character index 'j' is out of range.");
+
+    #R0 = Integers(G.get_order());
+
+    #chi = [];
+    #gen = generator;
+
+    #for u in G:
+        #v   = gen;
+        #jk  = R0(j); # Why do we do this here. Ask Ben.
+        #while v != u:
+            #v  = G.mult(v, gen);
+            #jk = jk + j;  
+
+        #chi.append((u, jk));
+
+    #return chi;

@@ -1,5 +1,5 @@
-#!/usr/bin/env sage
-#/usr/bin/sage -python
+##!/usr/bin/env sage
+#!/usr/bin/sage -python
 
 import sys
 from sage.all import *
@@ -362,10 +362,10 @@ for j in R0:
     if all( b[1] == 0 for b in B) == False:
         char_prim.append(j)
 
-print char_prim
+#print char_prim
 
-print characterlist(4, C); 
-exit();
+#print characterlist(4, C); 
+#exit();
 
 
 
@@ -564,7 +564,7 @@ Chars = characterlist(chi,C)
 
 # No input, w = [[0,-1],[1,0]]. This calculation putters out at p = 7. 
 
-def Actionw():
+def ActionW():
     M = []
     for l in orbits_chi(G):        
         H = [mult(c[0],l[0]) for c in Chars]
@@ -580,6 +580,29 @@ def Actionw():
     return matrix(M)
 
 
+    def W(self):
+        """ 
+        Action of W 
+        Return:
+
+        NOTE
+        The result is cached.
+        """
+        M = [];
+        for o1 in self.orbit_reps:        
+            H = [self.G.mult_fast(c, o1) for (c, cx) in self.X];
+            V = [];
+            for o2 in self.orbit_reps:
+                Sum1 = 0
+                for h in H:
+                    g = H.index(h)
+                    # pull things out of this sum
+                    Value = self._e_sigma(-2*(self.G.traceconj_fast(o2,h))) \
+                          * self._e_chi((self.X[g][1]));
+                    Sum1 = Value + Sum1;
+                V.append(Sum1*self.W_constant)
+            M.append(V)
+        self.W_cached = matrix(M);
 
 
 
@@ -636,76 +659,80 @@ def decomp(A):
 def repdecomp(A):
     AG = A.list()    
     if AG[1][0]%p == 0:        
-        Bruhat = Actionw()*ActionB(-AG[1][0]*(AG[0][0])**(-1))*Actionw()*ActionA(-AG[0][0])*ActionB(AG[0][1]*AG[0][0]**(-1))         
+        Bruhat = ActionW()*ActionB(-AG[1][0]*(AG[0][0])**(-1))*ActionW()*ActionA(-AG[0][0])*ActionB(AG[0][1]*AG[0][0]**(-1))         
     else:
-        Bruhat = ActionB(AG[0][0]*AG[1][0]**(-1))*Actionw()*ActionA(AG[1][0])*ActionB(AG[1][1]*AG[1][0]**(-1))      
+        Bruhat = ActionB(AG[0][0]*AG[1][0]**(-1))*ActionW()*ActionA(AG[1][0])*ActionB(AG[1][1]*AG[1][0]**(-1))      
     return Bruhat
 
 
 # Examples. Use S.list() to produce the list of elements in SL(2, Z/p^nZ). We can select the i^th element in the list by doing S.list()[i] and check its order by S.list()[i].order(). The program repdecomp(S.list()[i]) will produce the matrix associated to this element. Alterntatively you can produce your own elements in SL(2, Z/p^nZ) by doing S([[a,b],[c,d]]).
 
 #a = S([[1, 1],[0,1]]);
-print(ActionB(3));
 #print("repdecomping");
 #print(repdecomp(a));
 #repdecomp(S.list()[27])
 
+def test_output():
+    return (ActionB(3), ActionA(4), ActionW(), constant);
+
+def test_primitives():
+    return char_prim;
 
 
 
-##### TESTS #####
+###### TESTS #####
 
-def TEST_C(C):
+#def TEST_C(C):
 
-    fail = 0;
+    #fail = 0;
 
-    # C IS A GROUP?
-    for i in range(0, len(C)):
-        found_inverse = 0;
-        for j in range(0, len(C)):
-            w = mult(C[i],C[j]);
+    ## C IS A GROUP?
+    #for i in range(0, len(C)):
+        #found_inverse = 0;
+        #for j in range(0, len(C)):
+            #w = mult(C[i],C[j]);
 
-            found_inverse = (found_inverse or w == (1,0));
+            #found_inverse = (found_inverse or w == (1,0));
 
-            if w not in C:
-                print("[FAIL] Test group-ness of subgroup C"); 
-                print("       mult((%d,%d),(%d,%d)) not in C" % (C[i][0],C[i][1],C[j][0],C[j][1]));
-                fail = 1;
-            elif j == (len(C)-1) and found_inverse == 0:
-                print("[FAIL] Test group-ness of subgroup C"); 
-                print("       (%d,%d) has no inverse?" % (C[i][0],C[i][1]));
-                fail = 1;
+            #if w not in C:
+                #print("[FAIL] Test group-ness of subgroup C"); 
+                #print("       mult((%d,%d),(%d,%d)) not in C" % (C[i][0],C[i][1],C[j][0],C[j][1]));
+                #fail = 1;
+            #elif j == (len(C)-1) and found_inverse == 0:
+                #print("[FAIL] Test group-ness of subgroup C"); 
+                #print("       (%d,%d) has no inverse?" % (C[i][0],C[i][1]));
+                #fail = 1;
 
-    print("[PASS] Test group-ness of subgroup C"); 
+    #print("[PASS] Test group-ness of subgroup C"); 
 
-    # C IS ABELIAN?
-    for i in range(0, len(C)):
-        for j in range(0, len(C)):
-            if mult(C[i],C[j]) != mult(C[j],C[i]):
-                print("[FAIL] Test abelian-ness of subgroup C"); 
-                fail = 1;
+    ## C IS ABELIAN?
+    #for i in range(0, len(C)):
+        #for j in range(0, len(C)):
+            #if mult(C[i],C[j]) != mult(C[j],C[i]):
+                #print("[FAIL] Test abelian-ness of subgroup C"); 
+                #fail = 1;
 
-    print("[PASS] Test abelian-ness of subgroup C"); 
+    #print("[PASS] Test abelian-ness of subgroup C"); 
 
-    # C HAS THE PREDICTED ORDER?
-    if k == 0:
-        if len(C) == p**(n-1)*(p - (-1*Del/p)):
-            print("[PASS] Test order of subgroup C"); 
-        else:
-            print("[FAIL] Test order of subgroup C"); 
-            fail = 1;
-    elif 1 <= k and k <= n-1:
-        if len(C) == 2*p**(n-k):
-            print("[PASS] Test order of subgroup C"); 
-        else:
-            print("[FAIL] Test order of subgroup C"); 
-            fail = 1;
-    else:
-        print("[FAIL] Test order of subgroup C"); 
-        print("       MALFORMED parameter k=%d" % (k));
-        fail = 1;
+    ## C HAS THE PREDICTED ORDER?
+    #if k == 0:
+        #if len(C) == p**(n-1)*(p - (-1*Del/p)):
+            #print("[PASS] Test order of subgroup C"); 
+        #else:
+            #print("[FAIL] Test order of subgroup C"); 
+            #fail = 1;
+    #elif 1 <= k and k <= n-1:
+        #if len(C) == 2*p**(n-k):
+            #print("[PASS] Test order of subgroup C"); 
+        #else:
+            #print("[FAIL] Test order of subgroup C"); 
+            #fail = 1;
+    #else:
+        #print("[FAIL] Test order of subgroup C"); 
+        #print("       MALFORMED parameter k=%d" % (k));
+        #fail = 1;
 
-    return not fail;
+    #return not fail;
 
 
-TEST_C(C);
+#TEST_C(C);
