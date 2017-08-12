@@ -1,53 +1,57 @@
 #!/usr/bin/sage -python
-"""
- INTRODUCTION
- ------------ 
- This program implements the construction of the complex
- representations of the groups 
-
-   SL_2(Z/(p^n)Z)      (p: odd prime, n: positive integer)
-
- using the method pioneered by Kloosterman in 1946 and 
- extended by Tanaka in 1967. 
- 
- The notation introduced in [KLOO46] and later in [TANA67] 
- is used where appropriate to aid in cross-reference of
- this program with the theory.
-
- A paper [TODO] detailing the aspects of the computation 
- and reviewing the techniques in [KLOO46] and [TANA67]
- is slated to accompany the release of this program.
-
- References
- ----------
- 1. [KLOO46] Kloosterman, H. (1946). The Behavior of General Theta Functions 
- Under the Modular Group and the Characters of Binary Modular Congruence 
- Groups. II. Annals of Mathematics, 47(3), second series, 317-375. 
- doi:10.2307/1969082
-
- 2. [TANA67] Tanaka, S. (1967). Irreducible representations of the binary 
- modular congruence groups mod p^l. J. Math. Kyoto Univ. 7, no. 2, 123-132. 
- doi:10.1215/kjm/1250524272. 
-"""
-
+###############################################################################
+#
+# PROGRAM DESCRIPTION 
+# ------------------- 
+# This program implements the construction of the complex
+# representations of the groups 
+#
+#   SL_2(Z/(p^n)Z)      (p: odd prime, n: positive integer)
+#
+# using the method pioneered by Kloosterman in 1946 and 
+# extended by Tanaka in 1967. 
+# 
+# The notation introduced in [KLOO46] and later in [TANA67] 
+# is used where appropriate to aid in cross-reference of
+# this program with the theory.
+#
+# A paper [TODO] detailing the aspects of the computation 
+# and reviewing the techniques in [KLOO46] and [TANA67]
+# is slated to accompany the release of this program.
+#
+# REFERENCES 
+# ---------- 
+# 1. [KLOO46] Kloosterman, H. (1946). The Behavior of General 
+# Theta Functions Under the Modular Group and the Characters of 
+# Binary Modular Congruence Groups. II. Annals of Mathematics, 
+# 47(3), second series, 317-375. doi:10.2307/1969082
+#
+# 2. [TANA67] Tanaka, S. (1967). Irreducible representations of 
+# the binary modular congruence groups mod p^l. J. Math. Kyoto 
+# Univ. 7, no. 2, 123-132. doi:10.1215/kjm/1250524272. 
+#
+###############################################################################
 import sys
 from sage.all import *
 
 # GLOBAL STATE 
-###############################################################################
+#------------------------------------------------------------------------------
 UCF = UniversalCyclotomicField();
 
 # CLASSES
-###############################################################################
+#------------------------------------------------------------------------------
 class TanakaParams():
     """
-    Validate parameters used to instantiate Tanaka objects.
+    Validate parameters used to instantiate a TanakaMonoid.
     
     NOTE
-    Validation is implemented as a class (rather than a function) to make
-    it faster/simpler for receivers to explicitly verify inputs by testing 
+    Validation is implemented as a class (rather than a function) 
+    to make it simpler for receivers to explicitly verify inputs 
+    by testing:
 
         isinstance(P, TanakaParams).
+
+    rather than verifying each of the individual parameters.
 
     """
     def __init__(self, p, n, k, D, s):
@@ -82,27 +86,53 @@ class TanakaParams():
 
 class TanakaMonoid(): 
     """
-    Implement the monoid G = Z/(p^n)Z x Z/(p^(n-k))Z introduced in [TANA67].
+    Implements the monoid G = Z/(p^n)Z x Z/(p^(n-k))Z from [TANA67].
+
+    NOTES
+    1. This is the main algebraic object used in the construction.
+    It is a monoid under its multiplication operation, and its 
+    cyclic subgroups (cf. the derived TanakaCyclicSubgroup class) 
+    have this multiplication as their group operation. 
+
+    2. For efficiency and compatibility, members are stored as
+    pairs of plain Integers, not as pairs of e.g. elements from 
+    a SAGE IntegerModRing. This prevents expensive casting during 
+    internal arithmetic, and gives the caller a clean expectation
+    of what to give and receive.
+
+    So when we say that 
+        "u = (u0,u1) is in Z/(p^n)Z x Z/(p^(n-k))Z",
+    or
+        "u = (u0,u1) is a member of the monoid",
+    we mean that u0, u1 are integers such that
+        0 <= u0 < p^n 
+        0 <= u1 < p^(n-k).
     """
     def __init__(self, params, members=None):
         """
         Instantiate a TanakaMonoid object
         @params : TanakaParams object
-        @members: List of tuples (a,b) in Z/(p^n)Z x Z/(p^(n-k))Z.
+        @members: List of Integer tuples in Z/(p^n)Z x Z/(p^(n-k))Z
+        Return  : NONE 
         """
         if not isinstance(params, TanakaParams):
             raise TypeError("Expected TanakaParams");
 
-        self.params = params;
-        self.delta  = (params.p**params.k)*params.D;
-
-        self.Zpn  = IntegerModRing(params.p**params.n);
-        self.Zpnk = IntegerModRing(params.p**(params.n-params.k));
+        self.params   = params;
+        self.delta    = (params.p**params.k)*params.D;
+        self.pn       = params.p**params.n;
+        self.pnk      = params.p**(params.n-params.k);
+        self.identity = (1,0);
 
         if members == None:
-            self.members = [(a,b) for a in self.Zpn for b in self.Zpnk];
+            self.members = [
+                (u0,u1) for u0 in range(0,self.pn) for u1 in range(0,self.pnk)
+            ];
         else:
-            self.members = members;
+            # Caller's tuples are coerced to Integer (see NOTES, 2.)
+            self.members = [
+                (Integer(u0), Integer(u1)) for (u0,u1) in members
+            ];
 
     def __iter__(self):
         return iter(self.members);
@@ -112,60 +142,70 @@ class TanakaMonoid():
         return self.members[i];
 
     def order(self): 
+        """
+        Determine the number of elements in the monoid. 
+        @NONE
+        Return: Integer counting members of the object. 
+        """
         return len(self.members);
 
-    def norm(self, g):
+    def norm(self, u):
         """
-        Implements the norm map defined on the monoid. 
-        @g    : Member of the monoid Z/(p^n)Z x Z/(p^(n-k))Z
-        Return: Value in Z/(p^n)Z
+        Implements the norm map on the monoid, detailed in [TODO]. 
+        @u    : Integer tuple (u0,u1) in Z/(p^n)Z x Z/(p^(n-k))Z
+        Return: Integer in Z/(p^n)Z
         """
-        x = ZZ(g[0])**2 + self.delta*ZZ(g[1])**2;
-        return self.Zpn(x);
+        result = u[0]**2 + self.delta*u[1]**2;
+        return Integer(mod(result, self.pn));
     
     def traceconj(self, u, v):
         """
         Implements the trace conjugate defined on the monoid.
-        @u    : Member of the monoid
-        @v    : Member of the monoid
-        Return: Value in Z/(p^n)Z
+        @u    : Integer tuple (u0,u1) in Z/(p^n)Z x Z/(p^(n-k))Z
+        @v    : Integer tuple (v0,v1) in Z/(p^n)Z x Z/(p^(n-k))Z
+        Return: Integer in Z/(p^n)Z
         """
-        x = ZZ(u[0])*ZZ(v[0]) + self.delta*ZZ(u[1])*ZZ(v[1]);
-        return ZZ(self.Zpn(x));
+        result = u[0]*v[0] + self.delta*u[1]*v[1];
+        return Integer(mod(result, self.pn));
 
     def mult(self, u, v):
         """
         Implements the special multiplication defined on the monoid.
-        @u    : Member of the monoid
-        @v    : Member of the monoid
-        Return: Member of the monoid
+        @u    : Integer tuple (u0,u1) in Z/(p^n)Z x Z/(p^(n-k))Z
+        @v    : Integer tuple (v0,v1) in Z/(p^n)Z x Z/(p^(n-k))Z
+        Return: Integer tuple (w0,w1) in Z/(p^n)Z x Z/(p^(n-k))Z
         """
-        u1 = ZZ(u[0]); u2 = ZZ(u[1]);
-        v1 = ZZ(v[0]); v2 = ZZ(v[1]);
+        w0 = u[0]*v[0] - self.delta*u[1]*v[1];
+        w1 = u[0]*v[1] + u[1]*v[0];
 
-        w1 = u1*v1 - self.delta*u2*v2;
-        w2 = u1*v2 + u2*v1;
+        return (Integer(mod(w0, self.pn)), Integer(mod(w1, self.pnk)));
 
-        # TODO: This is casting to a kind of "TanakaMonoidMember"
-        return (self.Zpn(w1), self.Zpnk(w2));
+    def scalar_mult(self, a, u):
+        """
+        Implements scalar multiplication defined on the monoid.
+        @a    : Integer scalar
+        @u    : Integer tuple (u0, u1)  in Z/(p^n)Z x Z/(p^(n-k))Z
+        @u    : Integer tuple (au0,au1) in Z/(p^n)Z x Z/(p^(n-k))Z
+        """
+        return (Integer(mod(a*u[0], self.pn)), Integer(mod(a*u[1], self.pnk)));
 
     def cyclic_abelian_subgroup(self, members, generator=None):
         """
-        Instantiate a subgroup derived from the monoid.
-        @members  : A list of members of the subgroup derived from self.members 
-        @generator: A generating member, to ensure consistent indexing 
-        Return    : TanakaCyclicAbelianSubgroup object.
+        Instantiates a TanakaCyclicAbelianSubgroup derived from the monoid.
+        @members  : List of Integer tuples in Z/(p^n)Z x Z/(p^(n-k))Z
+        @generator: Integer tuple (g0, g1) in Z/(p^n)Z x Z/(p^(n-k))Z 
+        Return    : TanakaCyclicAbelianSubgroup object
         """
         return TanakaCyclicAbelianSubgroup(
                 params    = self.params,
                 members   = members, 
-                generator = generator
+                generator = generator,
         );
 
 
 class TanakaCyclicAbelianSubgroup(TanakaMonoid):
     """
-    Implements the subgroups C and CL from the text. 
+    Implements the subgroups C < G and CL < C from [TANA67]. 
         
     CAUTION 
     No explicit test for cyclic or abelian properties is 
@@ -176,106 +216,122 @@ class TanakaCyclicAbelianSubgroup(TanakaMonoid):
         """
         Instantiate a TanakaCyclicAbelianSubgroup object.
         @params   : TanakaParams object 
-        @members  : List of members derived from the parent. 
-        @generator: Generator in @members, to ensure consistent indexing.
+        @members  : List of Integer tuples in Z/(p^n)Z x Z/(p^(n-k))Z
+        @generator: Integer tuple (g0, g1) in Z/(p^n)Z x Z/(p^(n-k))Z 
         """
         TanakaMonoid.__init__(self, params=params, members=members);
         self._generator = generator;
+        self._powers    = [];
 
-    def order_of(self, member):
+
+    def order_of(self, u):
         """
         Determine the order of a member of the group.
-        @member: An element from self.members
-        Return : Integer order of that element
+        @u    : Integer tuple (u0,u1) in Z/(p^n)Z x Z/(p^(n-k))Z
+        Return: Integer j such that @u^j is the multiplicative identity 
         """
-        g = member;
-        o = 1;
-        while g != (self.Zpn(1), self.Zpnk(0)):
-            g = self.mult(g, member);
-            o = o + 1;
-        return o; 
+        tmp = u;
+        pwr = 1;
+        while tmp != self.identity:
+            tmp = self.mult(tmp, u);
+            pwr = pwr + 1;
+        return pwr; 
 
     def generator(self):
         """
-        Select a generator for the group.
-        Return: A member of the group which generates it.
+        Determine a generator for the group, or access the cached one. 
+        @NONE
+        Return: Integer tuple (g0,g1) in Z/(p^n)Z x Z/(p^(n-k))Z.
         """
         if self._generator == None:
-            t = 0 
-            while self.order_of(self.members[t]) != self.order():
-                t = t+1
-            self._generator = self.members[t];
+            j = 0 
+            while self.order_of(self.members[j]) != self.order():
+                j = j+1
+            self._generator = self.members[j];
         return self._generator;
+
+    def powers(self):
+        """
+        Provide list associating each member with a power of the generator.
+        @NONE
+        Return: List of tuples (c,j) where c=self._generator^j. 
+        """
+        gen = self.generator();
+
+        if len(self._powers) == 0:
+            for c in self:
+                tmp = gen;
+                pwr = 1;
+                while tmp != c:
+                    tmp = self.mult(tmp, gen);
+                    pwr = pwr + 1;
+                self._powers.append((c, pwr));
+        return self._powers;
 
 
 class CyclicCharacter():
     """
-    Implement a character of the form e^(2*pi*i*(1/n)*j).
-
+    Implements a character on a cyclic group.
+    
     NOTES
-    If C is a cyclic group of order m, then any character on C
-    must correspond to one of the m many primitive m-th roots of 
-    unity, each given as an integer power of e^(2*pi*i(1/|C|)).
-    Then we can simply index each character by providing an integer
-    corresponding to this integer power.
+    1. If C is a finite cyclic group of order m, then C is 
+    isomorphic to the group of m-th roots of unity under 
+    multiplication, and this isomorphism is the character.
+
+    The primitive m-th roots of unity are the complex numbers
+        e^(2*pi*i*j*(1/m))      for 1<=j<=m, gcd(j,m)=1.
+    Let 
+        zeta_m = e^(2*pi*i*(1/m)). 
+        
+    Then the m-th roots of unity are the distinct powers 
+        zeta_m^j                for 1<=j<=m.
+
+    Fix a generator <g>=C. The character must map g to 
+    a primitive m-th root of unity. There are phi(m) many
+    primitive m-th roots of unity, where phi() is Euler's
+    totient function, giving us phi(m) distinct characters
+    on C.
+
+    Define the character 
+        X_j:C-->Complex         for 1<=j<=m, gcd(j,m)=1
+            g-->zeta_m^j
+
+    Once we have defined where the generator goes, the rest
+    of the elements follow by multiplication:
+
+        X_j(u=g^k) = (zeta_m^j)^k.
+
+    2. These facts mean that to specify a character we need
+    only specify the integer order (m) of the group and the
+    integer power (j) of zeta_m to which we send the fixed 
+    generator of C. 
     """
-    def __init__(self, n, power=1, exact=True):
-        self.base = UCF.zeta(n)**power;
+    def __init__(self, order, power=1, exact=True):
+        """
+        Instantiate a CyclicCharacter object.
+        @order: Integer specifying primitive @order-th root of unity.
+        @power: Integer power of zeta_@order (selects generator/primitive RoU).
+        @exact: True-Store as Cyclotomic polynomial; False-Store as Complex.
+        Return: NONE
+
+        CAUTION
+        If gcd(@order, @power) != 1, then zeta_@order^@power 
+        is not primitive and hence won't generate the group.
+        """
+        self.base = UCF.zeta(order);
+        self.power = power;
+        self.order = order;
         if exact == False:
             self.base = complex(self.base.real(), self.base.imag());
 
     def eval(self, j):
-        return self.base**ZZ(j);
-
-
-class TanakaCharacter(CyclicCharacter):
-    """
-    Implement a character on a TanakaCyclicAbelianSubgroup.
-
-    NOTES
-    The domain C of a character X is always finite, so 
-    the character is stored as a list of tuples
-
-        (c, xc) in C x Z,
-
-    where c is the element of C, and xc, the image of c under X,
-    is an integer value from which the actual complex value of 
-    the character can be recovered (avoids loss of precision 
-    during intermediate steps). 
-    
-    If C=<g>, c=g^j is an element of C, then xc = j. 
-    """
-    def __init__(self, C, x, exact=True):
         """
-        Instantiate a TanakaCharacter object.
-        @C: TanakaCyclicAbelianSubgroup object.
-        @x: Integer index of the character. 
+        Implement the mapping u=g^j --> (self.base)^j.
+        @j    : Integer power to take of the base.
+        Return: Cyclotomic polynomial or Complex value (see @exact, __init__())
+
         """
-        if not isinstance(C, TanakaCyclicAbelianSubgroup):
-            raise TypeError("Domain must be TanakaCyclicAbelianSubgroup");
-
-        CyclicCharacter.__init__(self, C.order(), exact=exact);
-
-        data  = [];
-        gen   = C.generator();
-        order = C.order();
-
-        for c in C:
-            tmp = gen;
-            pwr   = 1;
-            while tmp != c:
-                tmp = C.mult(tmp, gen);
-                pwr = pwr + 1;
-            data.append((c, mod(x*pwr, order)));
-
-        self.data = data;
-
-    def __iter__(self):
-        return iter(self.data);
-    def __str__(self):
-        return str(self.data);
-    def __getitem__(self, i):
-        return self.data[i];
+        return self.base**mod(self.power*Integer(j), self.order);
 
 
 class TanakaRepSpace():
@@ -304,6 +360,9 @@ class TanakaRepSpace():
                     (mod(c[0], p**(n-1)), mod(c[1], p**(n-1-k))) == (1,0)
             ],
         );
+
+        print("CL members");
+        print(CL.members);
 
         # Attach algebraic structures to TanakaRepSpace 
         # after instantiation (allows reader to copy the
@@ -361,7 +420,7 @@ class TanakaRepSpace():
         """
         orbit_reps = [];
         G_members  = list(self.G.members); # Copying this sucks 
-        X          = dict(self.X);
+        X          = dict(self.C.powers());
 
         while len(G_members) != 0:
             g          = G_members[0];
@@ -384,6 +443,7 @@ class TanakaRepSpace():
 
     def get_primitive_characters(self):
         """
+        Determine which characters are primitive 
         Returns list of character indices, NOT TanakaCharacter-s
         """
         primitives = [];
@@ -397,7 +457,13 @@ class TanakaRepSpace():
         @chi:
         Return:
         """
-        self.X          = TanakaCharacter(self.C, chi, exact=self.exact);
+        #self.X          = TanakaCharacter(self.C, chi, exact=self.exact);
+        self.X = CyclicCharacter(
+            order=self.C.order(), 
+            power=chi, 
+            exact=self.exact
+        );
+
         self.orbit_reps = self._get_orbits();
         self.W_cached   = None; # Reset the cache
 
@@ -410,9 +476,9 @@ class TanakaRepSpace():
         M = [];
         for o1 in self.orbit_reps:
             V   = [];
-            ao1 = (a*o1[0], a*o1[1]);
+            ao1 = self.C.scalar_mult(a, o1);
             for o2 in self.orbit_reps:
-                for (c, xc) in self.X:
+                for (c, xc) in self.C.powers():
                     if self.G.mult(c, o2) == ao1:
                         V.append(
                             (self._legendre(a)**self.params.k)*self.X.eval(xc)
@@ -451,7 +517,7 @@ class TanakaRepSpace():
             M = [];
             for o1 in self.orbit_reps:        
                 V = [];
-                H = [(xc, self.G.mult(c, o1)) for (c,xc) in self.X];
+                H = [(xc, self.G.mult(c, o1)) for (c,xc) in self.C.powers()];
                 for o2 in self.orbit_reps:
                     Sum = 0
                     for (xc, co1) in H:
@@ -503,9 +569,8 @@ class TanakaSystem():
         return TanakaRepSpace(self.p, self.n, k, D, s, exact=self.exact);
 
 
-###############################################################################
 # CALLER INTERFACE
-###############################################################################
+#------------------------------------------------------------------------------
 
 def get_representations_of(a, b, c, d, p, n):
     """
@@ -515,19 +580,18 @@ def get_representations_of(a, b, c, d, p, n):
     pass;
 
 
-###############################################################################
 # TESTING
-###############################################################################
+#------------------------------------------------------------------------------
+
 #T = TanakaSystem(p=17, n=2);
 #R = T.representation_space(k=1, D=1, s=1);
 
 T = TanakaSystem(p=5, n=2, exact=True);
+
 R = T.representation_space(k=1, D=9, s=7);
 
-X = R.get_primitive_characters();
 
 R.set_primitive_character(4);
-
 
 from jason_sage import test_output;
 from jason_sage import test_primitives;
@@ -539,13 +603,12 @@ p2 = R.get_primitive_characters();
 
 print(p1 == p2);
 
-
-
-
 print(R.B(3) == out[0]);
 print((R.B(3) - out[0]).norm());
+
 print(R.A(4) ==  out[1]);
 print((R.A(4) - out[1]).norm());
+
 print(R.W() ==  out[2]);
 print((R.W() - out[2]).norm());
 
