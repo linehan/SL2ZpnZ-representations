@@ -123,7 +123,7 @@ class TanakaMonoid():
         self.delta    = params.D*(params.p**params.k);
         self.pn       = params.p**params.n;
         self.pnk      = params.p**(params.n-params.k);
-        self.identity = (1,0);  # Multiplicative identity.
+        self.identity = (1,0);
 
         if members == None:
             self.members = [
@@ -144,15 +144,15 @@ class TanakaMonoid():
 
     def order(self): 
         """
-        Determine the order of the monoid.
+        Determine the number of elements in the monoid. 
         @NONE
-        Return: Integer length of the members array. 
+        Return: Integer counting members of the object. 
         """
         return len(self.members);
 
     def norm(self, u):
         """
-        Implements the norm defined on the monoid (cf. [TODO]). 
+        Implements the norm map on the monoid, detailed in [TODO]. 
         @u    : Integer tuple (u0,u1) in Z/(p^n)Z x Z/(p^(n-k))Z
         Return: Integer in Z/(p^n)Z
         """
@@ -161,7 +161,7 @@ class TanakaMonoid():
     
     def traceconj(self, u, v):
         """
-        Implements the trace conjugate defined on the monoid (cf. [TODO])
+        Implements the trace conjugate defined on the monoid.
         @u    : Integer tuple (u0,u1) in Z/(p^n)Z x Z/(p^(n-k))Z
         @v    : Integer tuple (v0,v1) in Z/(p^n)Z x Z/(p^(n-k))Z
         Return: Integer in Z/(p^n)Z
@@ -171,7 +171,7 @@ class TanakaMonoid():
 
     def mult(self, u, v):
         """
-        Implements the multiplication defined on the monoid (cf. [TODO])
+        Implements the special multiplication defined on the monoid.
         @u    : Integer tuple (u0,u1) in Z/(p^n)Z x Z/(p^(n-k))Z
         @v    : Integer tuple (v0,v1) in Z/(p^n)Z x Z/(p^(n-k))Z
         Return: Integer tuple (w0,w1) in Z/(p^n)Z x Z/(p^(n-k))Z
@@ -186,7 +186,7 @@ class TanakaMonoid():
         Implements scalar multiplication defined on the monoid.
         @a    : Integer scalar
         @u    : Integer tuple (u0, u1)  in Z/(p^n)Z x Z/(p^(n-k))Z
-        Return: Integer tuple (au0,au1) in Z/(p^n)Z x Z/(p^(n-k))Z
+        @u    : Integer tuple (au0,au1) in Z/(p^n)Z x Z/(p^(n-k))Z
         """
         return (Integer(mod(a*u[0], self.pn)), Integer(mod(a*u[1], self.pnk)));
 
@@ -208,66 +208,53 @@ class TanakaCyclicSubgroup(TanakaMonoid):
     """
     Implements the subgroups C < G and CL < C from [TANA67]. 
 
+    NOTE
+    Recall that a cyclic group is abelian.
+        
     CAUTION 
-    No explicit test for cyclic properties is performed,
-    however if the group is not cyclic, you will know soon 
-    enough because the method generator() will complain.
+    No explicit test for cyclic properties is performed! 
+    If the group is not cyclic, you will know soon enough
+    because methods generator() and order_of() won't halt. 
     """
     def __init__(self, params, members, generator=None):
         """
         Instantiate a TanakaCyclicSubgroup object.
-
         @params   : TanakaParams object 
         @members  : List of Integer tuples in Z/(p^n)Z x Z/(p^(n-k))Z
         @generator: Integer tuple (g0, g1) in Z/(p^n)Z x Z/(p^(n-k))Z 
-        Return    : NONE
         """
         TanakaMonoid.__init__(self, params=params, members=members);
-        self._generator = generator; 
+        self._generator = generator; #generator if generator != None else self.generator();
         self._powers    = [];
-
-    def power_of(self, c, d): 
-        """
-        Determine the power of c that equals d. 
-        @c    : Integer tuple (c0,c1) in Z/(p^n)Z x Z/(p^(n-k))Z
-        @d    : Integer tuple (d0,d1) in Z/(p^n)Z x Z/(p^(n-k))Z
-        Return: Integer pwr smallest such that (@c)^pwr == @d.
-        """
-        tmp = c;
-        pwr = 1;
-
-        while tmp != d:
-            tmp = self.mult(tmp, c);
-            pwr = pwr + 1;
-
-            if pwr > self.order():
-                print("Power of %s equal to %s: %d, order:%d" % (c, d, pwr, self.order()));
-                print("[EMATH]: TanakaCyclicSubgroup is not a group");
-                
-        return pwr; 
 
     def order_of(self, c):
         """
-        Determine order of a group member.
+        Determine the order of a member of the group.
         @c    : Integer tuple (c0,c1) in Z/(p^n)Z x Z/(p^(n-k))Z
-        Return: Integer pwr smallest such that (@c)^pwr == self.identity
+        Return: Integer j such that @u^j is the multiplicative identity 
         """
-        return self.power_of(c, self.identity);
+        tmp = c;
+        pwr = 1;
+        while tmp != self.identity:
+            tmp = self.mult(tmp, c);
+            pwr = pwr + 1;
+        return pwr; 
 
     def generator(self):
         """
-        Determine a generator for the group
+        Determine a generator for the group, or access the cached one. 
         @NONE
-        Return: Integer tuple (c0,c1) in Z/(p^n)Z x Z/(p^(n-k))Z.
+        Return: Integer tuple (g0,g1) in Z/(p^n)Z x Z/(p^(n-k))Z.
         """
-        # CACHES
         if self._generator == None:
             for c in self.members:
                 if self.order_of(c) == self.order(): 
                     self._generator = c;
                     break;
             else:
-                print("[EMATH] TanakaCyclicSubgroup is not cyclic");
+                # TODO: Promote this to a check in __init__(). 
+                # Determine generator there.
+                print("[ERROR] C is not cyclic!");
 
         return self._generator;
 
@@ -279,24 +266,14 @@ class TanakaCyclicSubgroup(TanakaMonoid):
         """
         gen = self.generator();
 
-        # CACHES
         if len(self._powers) == 0:
             for c in self:
-                self._powers.append((c, self.power_of(gen, c)));
-        return self._powers;
-
-    def powers2(self):
-
-        gen = self.generator();
-
-        if len(self._powers) == 0:
-            tmp = gen;
-            pwr = 1;
-
-            while tmp != c:
-                tmp = self.mult(tmp, gen);
-                pwr = pwr + 1;
-            self._powers.append((c, pwr));
+                tmp = gen;
+                pwr = 1;
+                while tmp != c:
+                    tmp = self.mult(tmp, gen);
+                    pwr = pwr + 1;
+                self._powers.append((c, pwr));
         return self._powers;
 
 
@@ -380,33 +357,6 @@ def legendre(a, p):
     return -1 if val == -1 else Integer(val); 
 
 
-def compute_W_constant(p, n, k, D, s):
-    """ 
-    Computes the complicated constant used to make W 
-    """
-    # A fancy way to write i
-    i = UCF.zeta(4); 
-
-    # Compute epsilon
-    if   k%2 == 1 and legendre(-1, p) == 1:
-        epsilon = 1;
-    elif k%2 == 1 and legendre(-1, p) == -1:
-        epsilon = -i;
-    else:
-        epsilon = -1**n;
-
-    # Compute square root of p 
-    zeta_p = UCF.zeta(p);
-    sqrt_p = sum(legendre(a, p)*(zeta_p**a) for a in range(1, p));
-    if p % 4 == 3:
-        sqrt_p = i * sqrt_p; 
-
-    # The final constant 
-    return sqrt_p**(k -2*n)          \
-         * legendre(D,p)**(n-k)      \
-         * legendre(s,p)**k*epsilon; 
-
-
 def get_orbits(G, C):
     """
     Build list of class reps. of distinct orbits of action of @C on @G
@@ -421,6 +371,8 @@ def get_orbits(G, C):
     orbit_reps = [];
     G_members  = list(G.members); 
     X          = dict(C.powers());
+
+    ALL_ORBITS = [];
 
     while len(G_members) != 0:
         g          = G_members[0];
@@ -451,7 +403,6 @@ def get_orbits(G, C):
     return orbit_reps;
 
 
-
 class TanakaRepSpace():
     """
     Implement the representation space R_k(D, s).
@@ -478,7 +429,7 @@ class TanakaRepSpace():
         self.e_sigma = CyclicCharacter(order=p**n, power=s, exact=exact);
 
         # W stuff
-        self.W_constant = compute_W_constant(p, n, k, D, s);
+        self.W_constant = self._compute_W_constant(p, n, k, D, s);
         self.W_cached   = None;
 
         # Get orbit representatives
@@ -486,6 +437,32 @@ class TanakaRepSpace():
 
         # For setting the primitive character.
         self.exact = exact;
+
+    def _compute_W_constant(self, p, n, k, D, s):
+        """ 
+        Computes the complicated constant used to make W 
+        """
+        # A fancy way to write i
+        i = UCF.zeta(4); 
+
+        # Compute epsilon
+        if   k%2 == 1 and legendre(-1, p) == 1:
+            epsilon = 1;
+        elif k%2 == 1 and legendre(-1, p) == -1:
+            epsilon = -i;
+        else:
+            epsilon = -1**n;
+
+        # Compute square root of p 
+        zeta_p = UCF.zeta(p);
+        sqrt_p = sum(legendre(a, p)*(zeta_p**a) for a in range(1, p));
+        if p % 4 == 3:
+            sqrt_p = i * sqrt_p; 
+
+        # The final constant 
+        return sqrt_p**(k -2*n)          \
+             * legendre(D,p)**(n-k)      \
+             * legendre(s,p)**k*epsilon; 
 
     def get_primitive_characters(self):
         """
@@ -500,7 +477,7 @@ class TanakaRepSpace():
 
     def set_primitive_character(self, x):
         """
-        @x    :
+        @chi:
         Return:
         """
         self.X = CyclicCharacter(
@@ -516,9 +493,6 @@ class TanakaRepSpace():
         @a    : Integer in
         Return: Matrix
         """
-        if self.X == None:
-            print("[WARN] You must first call set_primitive_character()");
-
         M = [];
         p = self.params.p;
         k = self.params.k;
@@ -561,9 +535,6 @@ class TanakaRepSpace():
         NOTE
         The result is cached.
         """
-        if self.X == None:
-            print("[WARN] You must first call set_primitive_character()");
-
         if self.W_cached == None:
             M = [];
             for o1 in self.orbit_reps:        
@@ -588,7 +559,7 @@ class TanakaRepSpace():
         @d    :
         Return:
         """
-        ring = IntegerModRing(self.params.p**self.params.n);
+        ring = Integers(self.params.p**self.params.n);
 
         a = ring(a);
         b = ring(b);
@@ -637,11 +608,6 @@ def get_representations_of(a, b, c, d, p, n):
 
 T = TanakaSystem(p=3, n=2, exact=True);
 R = T.representation_space(k=0, D=1, s=1);
-
-print("|C|:"+str(R.C.order()));
-
-if R.C.powers() == R.C.powers2():
-    print("Ok!");
 
 X = R.get_primitive_characters();
 R.set_primitive_character(X[0]);
