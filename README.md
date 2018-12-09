@@ -1,4 +1,4 @@
-# SL2 Representations
+# Representations of SL2(Z/p^nZ)
 
 This is a Python SAGE software library to compute a complete set of exact representations of the finite group SL2(Z/p^nZ) for choice of prime *p>2* and integer *n >= 2*.
 
