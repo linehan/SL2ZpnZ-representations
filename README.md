@@ -1,6 +1,6 @@
 # Representations of SL2(Z/p^nZ)
 
-This is a Python SAGE software library to compute a complete set of exact representations of the finite group SL2(Z/p^nZ) for choice of prime *p>2* and integer *n >= 2*.
+This is a Python SAGE software library to compute a complete set of exact representations of the finite group <img src="https://latex.codecogs.com/gif.latex%3FSL_2%28%5Cmathbb%7BZ%7D%2Fp%5En%5Cmathbb%7BZ%7D%29"></img> for choice of prime *p>2* and integer *n >= 2*.
 
 Properties of this family (*n* being the free variable) of groups allows dynamic programming techniques to provide efficient algorithms for generating the representations. Fourier transforms can be done over a basis of elements found by Bruhat decomposition.
 
